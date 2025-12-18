@@ -11,215 +11,177 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Component
-public class MySqlProductDao extends MySqlDaoBase implements ProductDao
-{
-    public MySqlProductDao(DataSource dataSource)
-    {
-        super(dataSource); // parent setup
+public class MySqlProductDao extends MySqlDaoBase implements ProductDao {
+
+    public MySqlProductDao(DataSource dataSource) {
+        super(dataSource);
     }
 
-    @Override // must match
-    public List<Product> search(Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice)
-    {
-        List<Product> products = new ArrayList<>(); // results list
+    @Override
+    public List<Product> getAll() {
+        List<Product> products = new ArrayList<>();
 
-        String sql =
-                "SELECT product_id, name, price, category_id, description, subcategory, stock, image_url, featured " +
-                        "FROM products " +
-                        "WHERE (? = -1 OR category_id = ?) " +
-                        "  AND (? = -1 OR price >= ?) " +
-                        "  AND (? = -1 OR price <= ?)"; // filter query
+        String sql = """
+            SELECT product_id, name, price, category_id, description, image_url
+            FROM products
+        """;
 
-        int cat = (categoryId == null) ? -1 : categoryId; // null default
-        BigDecimal min = (minPrice == null) ? new BigDecimal("-1") : minPrice; // null default
-        BigDecimal max = (maxPrice == null) ? new BigDecimal("-1") : maxPrice; // null default
+        try (
+                Connection connection = getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet rs = statement.executeQuery()
+        ) {
+            while (rs.next()) {
+                products.add(mapRow(rs));
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
 
-        try (Connection connection = getConnection(); // db connect
-             PreparedStatement statement = connection.prepareStatement(sql)) // prep stmt
-        {
-            statement.setInt(1, cat); // cat flag
-            statement.setInt(2, cat); // cat val
+        return products;
+    }
 
-            statement.setBigDecimal(3, min); // min flag
-            statement.setBigDecimal(4, min); // min val
+    @Override
+    public Product getById(int id) {
+        String sql = """
+            SELECT product_id, name, price, category_id, description, image_url
+            FROM products
+            WHERE product_id = ?
+        """;
 
-            statement.setBigDecimal(5, max); // max flag
-            statement.setBigDecimal(6, max); // max val
+        try (
+                Connection connection = getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setInt(1, id);
 
-            try (ResultSet row = statement.executeQuery()) // run query
-            {
-                while (row.next()) // loop rows
-                {
-                    products.add(mapRow(row)); // map row
+            try (ResultSet rs = statement.executeQuery()) {
+                if (rs.next()) {
+                    return mapRow(rs);
                 }
             }
-        }
-        catch (SQLException e)
-        {
-            throw new RuntimeException(e); // bubble error
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
 
-        return products; // return list
+        return null;
     }
 
-    @Override // by category
-    public List<Product> listByCategoryId(int categoryId)
-    {
-        List<Product> products = new ArrayList<>(); // results list
+    @Override
+    public List<Product> search(Integer categoryId, BigDecimal minPrice, BigDecimal maxPrice, String subCategory) {
+        List<Product> products = new ArrayList<>();
 
-        String sql =
-                "SELECT product_id, name, price, category_id, description, subcategory, stock, image_url, featured " +
-                        "FROM products " +
-                        "WHERE category_id = ?"; // category filter
+        String sql = """
+            SELECT product_id, name, price, category_id, description, image_url
+            FROM products
+            WHERE (? IS NULL OR category_id = ?)
+              AND (? IS NULL OR price >= ?)
+              AND (? IS NULL OR price <= ?)
+        """;
 
-        try (Connection connection = getConnection(); // db connect
-             PreparedStatement statement = connection.prepareStatement(sql)) // prep stmt
-        {
-            statement.setInt(1, categoryId); // set id
+        try (
+                Connection connection = getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setObject(1, categoryId);
+            statement.setObject(2, categoryId);
+            statement.setObject(3, minPrice);
+            statement.setObject(4, minPrice);
+            statement.setObject(5, maxPrice);
+            statement.setObject(6, maxPrice);
 
-            try (ResultSet row = statement.executeQuery()) // run query
-            {
-                while (row.next()) // loop rows
-                {
-                    products.add(mapRow(row)); // map row
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    products.add(mapRow(rs));
                 }
             }
-        }
-        catch (SQLException e)
-        {
-            throw new RuntimeException(e); // bubble error
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
 
-        return products; // return list
+        return products;
     }
 
-    @Override // get one
-    public Product getById(int productId)
-    {
-        String sql =
-                "SELECT product_id, name, price, category_id, description, subcategory, stock, image_url, featured " +
-                        "FROM products " +
-                        "WHERE product_id = ?"; // id query
+    @Override
+    public Product create(Product product) {
+        String sql = """
+            INSERT INTO products (name, price, category_id, description, image_url)
+            VALUES (?, ?, ?, ?, ?)
+        """;
 
-        try (Connection connection = getConnection(); // db connect
-             PreparedStatement statement = connection.prepareStatement(sql)) // prep stmt
-        {
-            statement.setInt(1, productId); // set id
+        try (
+                Connection connection = getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)
+        ) {
+            statement.setString(1, product.getName());
+            statement.setBigDecimal(2, product.getPrice());
+            statement.setInt(3, product.getCategoryId());
+            statement.setString(4, product.getDescription());
+            statement.setString(5, product.getImageUrl());
 
-            try (ResultSet row = statement.executeQuery()) // run query
-            {
-                if (row.next()) // found row
-                {
-                    return mapRow(row); // map row
+            statement.executeUpdate();
+
+            try (ResultSet keys = statement.getGeneratedKeys()) {
+                if (keys.next()) {
+                    product.setProductId(keys.getInt(1));
                 }
             }
-        }
-        catch (SQLException e)
-        {
-            throw new RuntimeException(e); // bubble error
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
 
-        return null; // not found
+        return product;
     }
 
-    @Override // create row
-    public Product create(Product product)
-    {
-        String sql =
-                "INSERT INTO products (name, price, category_id, description, subcategory, stock, image_url, featured) " +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"; // insert sql
+    @Override
+    public void update(int id, Product product) {
+        String sql = """
+            UPDATE products
+            SET name = ?, price = ?, category_id = ?, description = ?, image_url = ?
+            WHERE product_id = ?
+        """;
 
-        try (Connection connection = getConnection(); // db connect
-             PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) // gen keys
-        {
-            statement.setString(1, product.getName()); // set name
-            statement.setBigDecimal(2, product.getPrice()); // set price
-            statement.setInt(3, product.getCategoryId()); // set cat
-            statement.setString(4, product.getDescription()); // set desc
-            statement.setString(5, product.getSubCategory()); // set subcat
-            statement.setInt(6, product.getStock()); // set stock
-            statement.setString(7, product.getImageUrl()); // set image
-            statement.setBoolean(8, product.isFeatured()); // set featured
+        try (
+                Connection connection = getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setString(1, product.getName());
+            statement.setBigDecimal(2, product.getPrice());
+            statement.setInt(3, product.getCategoryId());
+            statement.setString(4, product.getDescription());
+            statement.setString(5, product.getImageUrl());
+            statement.setInt(6, id);
 
-            statement.executeUpdate(); // run insert
-
-            try (ResultSet keys = statement.getGeneratedKeys()) // read keys
-            {
-                if (keys.next()) // has key
-                {
-                    int newId = keys.getInt(1); // new id
-                    return getById(newId); // return saved
-                }
-            }
-        }
-        catch (SQLException e)
-        {
-            throw new RuntimeException(e); // bubble error
-        }
-
-        return null; // insert failed
-    }
-
-    @Override // update row
-    public void update(int productId, Product product)
-    {
-        String sql =
-                "UPDATE products " +
-                        "SET name = ?, price = ?, category_id = ?, description = ?, subcategory = ?, stock = ?, image_url = ?, featured = ? " +
-                        "WHERE product_id = ?"; // update sql
-
-        try (Connection connection = getConnection(); // db connect
-             PreparedStatement statement = connection.prepareStatement(sql)) // prep stmt
-        {
-            statement.setString(1, product.getName()); // set name
-            statement.setBigDecimal(2, product.getPrice()); // set price
-            statement.setInt(3, product.getCategoryId()); // set cat
-            statement.setString(4, product.getDescription()); // set desc
-            statement.setString(5, product.getSubCategory()); // set subcat
-            statement.setInt(6, product.getStock()); // set stock
-            statement.setString(7, product.getImageUrl()); // set image
-            statement.setBoolean(8, product.isFeatured()); // set featured
-            statement.setInt(9, productId); // where id
-
-            statement.executeUpdate(); // run update
-        }
-        catch (SQLException e)
-        {
-            throw new RuntimeException(e); // bubble error
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    @Override // delete row
-    public void delete(int productId)
-    {
-        String sql = "DELETE FROM products WHERE product_id = ?"; // delete sql
+    @Override
+    public void delete(int id) {
+        String sql = "DELETE FROM products WHERE product_id = ?";
 
-        try (Connection connection = getConnection(); // db connect
-             PreparedStatement statement = connection.prepareStatement(sql)) // prep stmt
-        {
-            statement.setInt(1, productId); // set id
-            statement.executeUpdate(); // run delete
-        }
-        catch (SQLException e)
-        {
-            throw new RuntimeException(e); // bubble error
+        try (
+                Connection connection = getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)
+        ) {
+            statement.setInt(1, id);
+            statement.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
         }
     }
 
-    protected static Product mapRow(ResultSet row) throws SQLException
-    {
-        Product product = new Product(); // empty obj
-
-        product.setProductId(row.getInt("product_id")); // set id
-        product.setName(row.getString("name")); // set name
-        product.setPrice(row.getBigDecimal("price")); // set price
-        product.setCategoryId(row.getInt("category_id")); // set cat
-        product.setDescription(row.getString("description")); // set desc
-        product.setSubCategory(row.getString("subcategory")); // set subcat
-        product.setStock(row.getInt("stock")); // set stock
-        product.setImageUrl(row.getString("image_url")); // set image
-        product.setFeatured(row.getBoolean("featured")); // set featured
-
-        return product; // return obj
+    // helper
+    private Product mapRow(ResultSet rs) throws SQLException {
+        Product product = new Product();
+        product.setProductId(rs.getInt("product_id"));
+        product.setName(rs.getString("name"));
+        product.setPrice(rs.getBigDecimal("price"));
+        product.setCategoryId(rs.getInt("category_id"));
+        product.setDescription(rs.getString("description"));
+        product.setImageUrl(rs.getString("image_url"));
+        return product;
     }
 }
