@@ -6,13 +6,13 @@ import java.util.List;
 
 public interface CategoryDao
 {
-    List<Category> getAllCategories();
+    List<Category> getAll();
 
-    Category getById(int categoryId);
+    Category getById(int id);
 
     Category create(Category category);
 
-    void update(int categoryId, Category category);
+    void update(int id, Category category);
 
-    void delete(int categoryId);
+    void delete(int id);
 }

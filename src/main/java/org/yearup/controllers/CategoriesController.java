@@ -3,6 +3,7 @@ package org.yearup.controllers;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.yearup.data.CategoryDao;
@@ -17,67 +18,63 @@ import java.util.List;
 @CrossOrigin
 public class CategoriesController
 {
-    private CategoryDao categoryDao;
-    private ProductDao productDao;
+    private final CategoryDao categoryDao;
+    private final ProductDao productDao;
 
-    @Autowired // auto inject
+    @Autowired
     public CategoriesController(CategoryDao categoryDao, ProductDao productDao)
     {
-        this.categoryDao = categoryDao; // save dao
-        this.productDao = productDao;   // save dao
+        this.categoryDao = categoryDao;
+        this.productDao = productDao;
     }
 
-    // add the appropriate annotation for a get action
-    @GetMapping // get all
+    // GET /categories
+    @GetMapping("")
     public List<Category> getAll()
     {
-        // find and return all categories
-        return categoryDao.getAllCategories(); // dao fetch
+        return categoryDao.getAll();
     }
 
-    // add the appropriate annotation for a get action
-    @GetMapping("{id}") // get one
+    // GET /categories/{id}
+    @GetMapping("/{id}")
     public Category getById(@PathVariable int id)
     {
-        // get the category by id
-        Category category = categoryDao.getById(id); // dao fetch
+        Category category = categoryDao.getById(id);
 
-        if(category == null)
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND); // not found
+        if (category == null)
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
 
-        return category; // return cat
+        return category;
     }
 
-    // the url to return all products in category 1 would look like this
-    // https://localhost:8080/categories/1/products
-    @GetMapping("{categoryId}/products") // cat products
-    public List<Product> getProductsById(@PathVariable int categoryId)
+    // get products by category id
+    @GetMapping("{categoryId}/products")
+    public List<Product> getProductsByCategoryId(@PathVariable int categoryId)
     {
-        // get a list of product by categoryId
-        return productDao.listByCategoryId(categoryId); // dao fetch
+        return productDao.listByCategoryId(categoryId);
     }
 
-    // add annotation to call this method for a POST action
-    // add annotation to ensure that only an ADMIN can call this function
-    @PostMapping // create
-    @PreAuthorize("hasRole('ROLE_ADMIN')") // admin only
+    // create category (admin only)
+    @PostMapping
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public Category addCategory(@RequestBody Category category)
     {
-        // insert the category
-        return categoryDao.create(category); // create cat
+        return categoryDao.create(category);
     }
 
-    @PutMapping("{id}") // update
-    @PreAuthorize("hasRole('ROLE_ADMIN')") // admin only
+    // update category (admin only)
+    @PutMapping("{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public void updateCategory(@PathVariable int id, @RequestBody Category category)
     {
-        categoryDao.update(id, category); // update cat
+        categoryDao.update(id, category);
     }
 
-    @DeleteMapping("{id}") // delete
-    @PreAuthorize("hasRole('ROLE_ADMIN')") // admin only
+    // delete category (admin only)
+    @DeleteMapping("{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public void deleteCategory(@PathVariable int id)
     {
-        categoryDao.delete(id); // delete cat
+        categoryDao.delete(id);
     }
 }
