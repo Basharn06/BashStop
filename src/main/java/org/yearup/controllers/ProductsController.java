@@ -1,9 +1,6 @@
 package org.yearup.controllers;
 
-import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.server.ResponseStatusException;
 import org.yearup.data.ProductDao;
 import org.yearup.models.Product;
 
@@ -22,55 +19,52 @@ public class ProductsController
         this.productDao = productDao;
     }
 
-    @GetMapping("")
-    public List<Product> getAll()
-    {
-        return productDao.getAll();
-    }
-
-    @GetMapping("/search")
-    public List<Product> search(
+    // get products
+    @GetMapping
+    public List<Product> getAll(
             @RequestParam(required = false) Integer categoryId,
+            @RequestParam(required = false) Integer cat,
             @RequestParam(required = false) BigDecimal minPrice,
             @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(required = false) String subCategory,
             @RequestParam(required = false) String name
     )
     {
-        return productDao.search(categoryId, minPrice, maxPrice, subCategory, name);
+        Integer resolvedCategoryId = categoryId;
+
+        if (resolvedCategoryId == null && cat != null)
+        {
+            resolvedCategoryId = cat;
+        }
+
+        if (resolvedCategoryId != null && resolvedCategoryId == 0)
+        {
+            resolvedCategoryId = null;
+        }
+
+        if (subCategory != null && subCategory.isBlank())
+        {
+            subCategory = null;
+        }
+
+        if (name != null && name.isBlank())
+        {
+            name = null;
+        }
+
+        return productDao.search(
+                resolvedCategoryId,
+                minPrice,
+                maxPrice,
+                subCategory,
+                name
+        );
     }
 
+    // get by id
     @GetMapping("/{id}")
     public Product getById(@PathVariable int id)
     {
-        Product product = productDao.getById(id);
-
-        if (product == null)
-        {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
-        }
-
-        return product;
-    }
-
-    @PostMapping("")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public Product create(@RequestBody Product product)
-    {
-        return productDao.create(product);
-    }
-
-    @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public void update(@PathVariable int id, @RequestBody Product product)
-    {
-        productDao.update(id, product);
-    }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public void delete(@PathVariable int id)
-    {
-        productDao.delete(id);
+        return productDao.getById(id);
     }
 }

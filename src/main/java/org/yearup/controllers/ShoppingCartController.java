@@ -1,5 +1,7 @@
 package org.yearup.controllers;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.yearup.data.ShoppingCartDao;
 import org.yearup.data.UserDao;
@@ -9,8 +11,8 @@ import org.yearup.models.User;
 import java.security.Principal;
 
 @RestController
-@RequestMapping("/cart")
 @CrossOrigin
+@RequestMapping("/cart")
 public class ShoppingCartController
 {
     private final ShoppingCartDao shoppingCartDao;
@@ -24,46 +26,80 @@ public class ShoppingCartController
 
     // get cart
     @GetMapping
-    public ShoppingCart getCart(Principal principal)
+    public ResponseEntity<?> getCart(Principal principal)
     {
-        User user = getUser(principal);
-        return shoppingCartDao.getByUserId(user.getId());
+        User user = getUserOrNull(principal);
+        if (user == null) return unauthorized();
+
+        ShoppingCart cart = shoppingCartDao.getByUserId(user.getId());
+        return ResponseEntity.ok(cart);
     }
 
     // add product
     @PostMapping("/products/{productId}")
-    public ShoppingCart addProduct(@PathVariable int productId, Principal principal)
+    public ResponseEntity<?> addProduct(@PathVariable int productId, Principal principal)
     {
-        User user = getUser(principal);
+        User user = getUserOrNull(principal);
+        if (user == null) return unauthorized();
+
         shoppingCartDao.addProduct(user.getId(), productId);
-        return shoppingCartDao.getByUserId(user.getId());
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
-    // update quantity
+    // update qty
     @PutMapping("/products/{productId}")
-    public ShoppingCart updateQuantity(
-            @PathVariable int productId,
-            @RequestBody ShoppingCartItemRequest body,
-            Principal principal)
+    public ResponseEntity<?> updateQuantity(@PathVariable int productId,
+                                            @RequestBody QuantityRequest body,
+                                            Principal principal)
     {
-        User user = getUser(principal);
+        User user = getUserOrNull(principal);
+        if (user == null) return unauthorized();
+
         shoppingCartDao.updateQuantity(user.getId(), productId, body.getQuantity());
-        return shoppingCartDao.getByUserId(user.getId());
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     // clear cart
     @DeleteMapping
-    public ShoppingCart clearCart(Principal principal)
+    public ResponseEntity<?> clearCart(Principal principal)
     {
-        User user = getUser(principal);
+        User user = getUserOrNull(principal);
+        if (user == null) return unauthorized();
+
         shoppingCartDao.clearCart(user.getId());
-        return shoppingCartDao.getByUserId(user.getId());
+        return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
     }
 
     // helper
-    private User getUser(Principal principal)
+    private User getUserOrNull(Principal principal)
     {
+        if (principal == null) return null;
+
         String username = principal.getName();
+        if (username == null || username.isBlank()) return null;
+
         return userDao.getByUserName(username);
+    }
+
+    // helper
+    private ResponseEntity<?> unauthorized()
+    {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
+    }
+
+    // request body
+    public static class QuantityRequest
+    {
+        private int quantity;
+
+        public int getQuantity()
+        {
+            return quantity;
+        }
+
+        public void setQuantity(int quantity)
+        {
+            this.quantity = quantity;
+        }
     }
 }
